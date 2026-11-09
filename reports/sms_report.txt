@@ -1,0 +1,13 @@
+Classification report:
+              precision    recall  f1-score   support
+
+         ham       0.99      0.99      0.99       903
+        spam       0.90      0.92      0.91       131
+
+    accuracy                           0.98      1034
+   macro avg       0.95      0.95      0.95      1034
+weighted avg       0.98      0.98      0.98      1034
+
+Confusion matrix:
+[[890  13]
+ [ 11 120]]

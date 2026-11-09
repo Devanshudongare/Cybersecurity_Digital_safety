@@ -1,0 +1,35 @@
+# Python environments
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Large network datasets - keep locally
+data/raw/network/
+data/raw/urls/tranco/top-1m.csv
+
+# Android build outputs
+android-app/build/
+android-app/.gradle/
+android-app/local.properties
+
+# Gradle backup files
+*.bak
+
+# Logs
+*.log
+# Large datasets
+data/raw/network/
+data/raw/urls/tranco/top-1m.csv
+
+# Python environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Android generated files
+android-app/build/
+android-app/.gradle/
+android-app/local.properties
+*.bak

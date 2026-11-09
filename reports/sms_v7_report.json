@@ -1,0 +1,24 @@
+{
+    "model": "SMS V7 Word + Character TF-IDF Linear SVM",
+    "dataset_samples": 5710,
+    "train_samples": 4568,
+    "test_samples": 1142,
+    "random_state": 42,
+    "test_size": 0.2,
+    "accuracy": 0.9921190893169878,
+    "spam_precision": 0.9880952380952381,
+    "spam_recall": 0.9595375722543352,
+    "spam_f1": 0.9736070381231672,
+    "false_positives": 2,
+    "false_negatives": 7,
+    "confusion_matrix": [
+        [
+            967,
+            2
+        ],
+        [
+            7,
+            166
+        ]
+    ]
+}

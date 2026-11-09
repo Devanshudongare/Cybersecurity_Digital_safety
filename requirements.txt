@@ -1,0 +1,6 @@
+# Runtime dependencies for the existing local Streamlit application.
+# Install these before disconnecting the machine from the internet.
+joblib==1.6.0
+pandas==2.3.3
+scikit-learn==1.7.2
+streamlit==1.65.0

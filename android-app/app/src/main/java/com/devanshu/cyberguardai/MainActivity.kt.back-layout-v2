@@ -1,0 +1,548 @@
+﻿package com.devanshu.cyberguardai
+
+
+import kotlinx.coroutines.launch
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import java.util.Locale
+
+private val Background = Color(0xFF08111F)
+private val CardColor = Color(0xFF111F32)
+private val Accent = Color(0xFF00E5A8)
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MaterialTheme { CyberGuardApp() }
+        }
+    }
+}
+
+@Composable
+fun CyberGuardApp() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val preferences = remember {
+        context.getSharedPreferences("cyberguard_settings", android.content.Context.MODE_PRIVATE)
+    }
+
+    var screen by remember { mutableStateOf("home") }
+
+    var language by remember {
+        mutableStateOf(
+            runCatching {
+                AppLanguage.valueOf(
+                    preferences.getString("app_language", "ENGLISH") ?: "ENGLISH"
+                )
+            }.getOrDefault(AppLanguage.ENGLISH)
+        )
+    }
+
+    fun changeLanguage(newLanguage: AppLanguage) {
+        language = newLanguage
+        preferences.edit()
+            .putString("app_language", newLanguage.name)
+            .apply()
+    }
+
+    when (screen) {
+        "home" -> HomeScreen(
+            language = language,
+            onLanguageChange = { changeLanguage(it) },
+            onSms = { screen = "sms" },
+            onUrl = { screen = "url" },
+            onNetwork = { screen = "network" }
+        )
+
+        "sms" -> SmsScreen(onBack = { screen = "home" })
+        "url" -> UrlScreen(onBack = { screen = "home" })
+        "network" -> NetworkScreen(onBack = { screen = "home" })
+    }
+}
+
+@Composable
+fun HomeScreen(
+    language: AppLanguage,
+    onLanguageChange: (AppLanguage) -> Unit,
+    onSms: () -> Unit,
+    onUrl: () -> Unit,
+    onNetwork: () -> Unit
+) {
+    var languageMenu by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .background(Background)
+            .verticalScroll(rememberScrollState())
+            .padding(22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(25.dp))
+
+        Text(
+            language.translate("app_title"),
+            color = Accent,
+            fontSize = 28.sp
+        )
+
+        Text(
+            language.translate("tagline"),
+            color = Color.White,
+            fontSize = 16.sp
+        )
+
+        Spacer(Modifier.height(20.dp))
+
+        Box {
+            OutlinedButton(onClick = { languageMenu = true }) {
+                Text(
+                    "🌐 ${language.displayName}",
+                    color = Accent
+                )
+            }
+
+            DropdownMenu(
+                expanded = languageMenu,
+                onDismissRequest = { languageMenu = false }
+            ) {
+                AppLanguage.values().forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.displayName) },
+                        onClick = {
+                            onLanguageChange(option)
+                            languageMenu = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(25.dp))
+
+        Text(
+            language.translate("choose"),
+            color = Color.White,
+            fontSize = 20.sp
+        )
+
+        Spacer(Modifier.height(20.dp))
+
+        DashboardButton(
+            language.translate("sms"),
+            language.translate("sms_sub"),
+            onSms
+        )
+
+        Spacer(Modifier.height(18.dp))
+
+        DashboardButton(
+            language.translate("url"),
+            language.translate("url_sub"),
+            onUrl
+        )
+
+        Spacer(Modifier.height(18.dp))
+
+        DashboardButton(
+            language.translate("network"),
+            language.translate("network_sub"),
+            onNetwork
+        )
+
+        Spacer(Modifier.height(30.dp))
+
+        Text(
+            language.translate("safety"),
+            color = Accent,
+            fontSize = 16.sp
+        )
+
+        Spacer(Modifier.height(20.dp))
+
+        Text(
+            language.translate("warning"),
+            color = Color.LightGray,
+            fontSize = 15.sp
+        )
+    }
+}
+@Composable
+fun DashboardButton(title: String, subtitle: String, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = CardColor)
+    ) {
+        Column(modifier = Modifier.padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(title, color = Accent, fontSize = 21.sp)
+            Spacer(Modifier.height(10.dp))
+            Text(subtitle, color = Color.White, fontSize = 17.sp)
+        }
+    }
+}
+
+@Composable
+fun SmsScreen(onBack: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val detector = remember { SmsDetector(context) }
+    val repository = remember { LearningRepository(context) }
+    val scope = rememberCoroutineScope()
+    var message by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf<SmsResult?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AnalyzerLayout("SMS MESSAGE CHECKER", onBack) {
+        Text("Paste or type the SMS message:", color = Color.White, fontSize = 19.sp)
+        Spacer(Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = message,
+            onValueChange = { message = it; result = null; error = null },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 5,
+            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 19.sp),
+            placeholder = { Text("Enter SMS here...") },
+            colors = fieldColors()
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        ActionButton("CHECK SMS") {
+            if (message.isBlank()) {
+                error = "Please enter a message first."
+                result = null
+            } else {
+                try {
+                    val analyzed = detector.analyze(message)
+                    result = analyzed
+
+                    scope.launch {
+                        repository.saveScan(
+                            analyzer = "SMS",
+                            input = message,
+                            result = analyzed.classification,
+                            riskScore = analyzed.spamProbability
+                        )
+                    }
+                    error = null
+                } catch (e: Exception) {
+                    error = "Could not analyze message."
+                }
+            }
+        }
+
+        error?.let { Text(it, color = Color.Red, fontSize = 17.sp) }
+
+        result?.let { smsResult ->
+            ResultCard(
+                heading = when (smsResult.classification) {
+                    "Potential Scam" -> "⚠ POSSIBLE FRAUD"
+                    "Likely Safe" -> "MESSAGE LOOKS NORMAL"
+                    else -> "PLEASE BE CAREFUL"
+                },
+                explanation = when (smsResult.classification) {
+                    "Potential Scam" ->
+                        "This message may be trying to steal your money. Do not share OTP or click unknown links."
+                    "Likely Safe" ->
+                        "This message looks normal. Still check who sent it."
+                    else ->
+                        "We are not sure about this message. Do not share money or personal details."
+                },
+                probability = smsResult.spamProbability
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            FeedbackCard(
+                analyzer = "SMS",
+                inputData = message,
+                predictedLabel = smsResult.classification,
+                confidence = smsResult.spamProbability,
+                possibleLabels = listOf(
+                    "Potential Scam",
+                    "Likely Safe",
+                    "Suspicious"
+                )
+            )
+        }
+    }
+}
+
+@Composable
+fun UrlScreen(onBack: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val detector = remember { UrlDetector(context) }
+    val repository = remember { LearningRepository(context) }
+    val scope = rememberCoroutineScope()
+    var url by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf<UrlResult?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AnalyzerLayout("WEBSITE LINK CHECKER", onBack) {
+        Text("Paste or type the website link:", color = Color.White, fontSize = 19.sp)
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = url, onValueChange = { url = it; result = null; error = null },
+            modifier = Modifier.fillMaxWidth(), minLines = 2,
+            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 19.sp),
+            placeholder = { Text("https://example.com") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            colors = fieldColors()
+        )
+        Spacer(Modifier.height(16.dp))
+        ActionButton("CHECK WEBSITE") {
+            if (url.isBlank()) { error = "Please enter a website link first."; result = null }
+            else try {
+               val analyzed = detector.analyze(url.trim())
+               result = analyzed
+               error = null
+
+               scope.launch {
+                   repository.saveScan(
+                       analyzer = "URL",
+                       input = url.trim(),
+                       result = analyzed.classification,
+                       riskScore = analyzed.phishingProbability
+                   )
+               }
+           }
+            catch (e: Exception) { error = "Could not analyze website." }
+        }
+        error?.let { Text(it, color = Color.Red, fontSize = 17.sp) }
+        result?.let {
+            ResultCard(
+                heading = when (it.classification) {
+                    "Potential Phishing" -> "âš  POSSIBLE FAKE WEBSITE"
+                    "Website Looks Normal" -> "WEBSITE LOOKS NORMAL"
+                    else -> "PLEASE BE CAREFUL"
+                },
+                explanation = when (it.classification) {
+                    "Potential Phishing" -> "This website may be fake and could steal your password or money. Do not open it."
+                    "Website Looks Normal" -> "This link looks normal to our AI. Still check the website address carefully."
+                    else -> "We are not sure about this website. Avoid entering passwords or payment details."
+                },
+                probability = it.phishingProbability
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            FeedbackCard(
+                analyzer = "URL",
+                inputData = url.trim(),
+                predictedLabel = it.classification,
+                confidence = it.phishingProbability,
+                possibleLabels = listOf(
+                    "Potential Phishing",
+                    "Website Looks Normal",
+                    "Suspicious Website"
+                )
+            )
+        }
+    }
+}
+
+@Composable
+fun NetworkScreen(onBack: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val detector = remember { NetworkDetector(context) }
+    val repository = remember { LearningRepository(context) }
+    val scope = rememberCoroutineScope()
+    val featureNames = remember { detector.getFeatureNames() }
+
+    var values by remember { mutableStateOf(mapOf<String, String>()) }
+    var result by remember { mutableStateOf<NetworkResult?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val visibleFeatures = listOf(
+        "Destination Port",
+        "Flow Duration",
+        "Total Fwd Packets",
+        "Total Backward Packets",
+        "Total Length of Fwd Packets",
+        "Total Length of Bwd Packets"
+    )
+
+    AnalyzerLayout("NETWORK TRAFFIC CHECKER", onBack) {
+        Text("Enter available network flow values:", color = Color.White, fontSize = 18.sp)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Other model features will use training-data median values.",
+            color = Color.LightGray,
+            fontSize = 14.sp
+        )
+        Spacer(Modifier.height(12.dp))
+
+        visibleFeatures.forEach { feature ->
+            NetworkInputField(
+                label = feature,
+                value = values[feature] ?: "",
+                onValueChange = { newValue ->
+                    values = values + (feature to newValue)
+                    result = null
+                    error = null
+                }
+            )
+            Spacer(Modifier.height(10.dp))
+        }
+
+        ActionButton("ANALYZE NETWORK") {
+            try {
+                val input = mutableMapOf<String, Double?>()
+
+                visibleFeatures.forEach { name ->
+                    val text = values[name].orEmpty().trim()
+                    input[name] =
+                        if (text.isEmpty()) null
+                        else text.toDoubleOrNull()
+                            ?: throw IllegalArgumentException("Enter a valid number for $name")
+                }
+
+                val analyzed = detector.analyze(input)
+               result = analyzed
+
+               val networkInput = values.entries.joinToString("; ") { entry ->
+                   "${entry.key}=${entry.value}"
+               }
+
+               scope.launch {
+                   repository.saveScan(
+                       analyzer = "NETWORK",
+                       input = networkInput,
+                       result = analyzed.classification,
+                       riskScore = analyzed.suspiciousProbability
+                   )
+               }
+                error = null
+            } catch (e: Exception) {
+                result = null
+                error = e.message ?: "Could not analyze network traffic."
+            }
+        }
+
+        error?.let { Text(it, color = Color.Red, fontSize = 16.sp) }
+
+        result?.let { networkResult ->
+            ResultCard(
+                heading = when (networkResult.classification) {
+                    "Potential Threat" -> "⚠ POSSIBLE NETWORK THREAT"
+                    "Likely Normal Traffic" -> "TRAFFIC LOOKS NORMAL"
+                    else -> "SUSPICIOUS TRAFFIC"
+                },
+                explanation = when (networkResult.classification) {
+                    "Potential Threat" ->
+                        "This traffic pattern may be suspicious. Investigate its source and destination."
+                    "Likely Normal Traffic" ->
+                        "This traffic looks normal to the model, but this is not a guarantee."
+                    else ->
+                        "The model is uncertain. Review this traffic before trusting it."
+                },
+                probability = networkResult.suspiciousProbability
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            FeedbackCard(
+                analyzer = "NETWORK",
+                inputData = values.entries.joinToString("; ") { entry ->
+                    "${entry.key}=${entry.value}"
+                },
+                predictedLabel = networkResult.classification,
+                confidence = networkResult.suspiciousProbability,
+                possibleLabels = listOf(
+                    "Potential Threat",
+                    "Likely Normal Traffic",
+                    "Suspicious Traffic"
+                )
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Demo limitation: only six values are entered manually; remaining features use model medians. CSV analysis can provide fuller data.",
+            color = Color.LightGray,
+            fontSize = 14.sp
+        )
+    }
+}
+
+@Composable
+fun NetworkInputField(label: String, value: String, onValueChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value, onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(), label = { Text(label) },
+        singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 17.sp),
+        colors = fieldColors()
+    )
+}
+
+@Composable
+fun AnalyzerLayout(title: String, onBack: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().background(Background)
+            .verticalScroll(rememberScrollState()).padding(20.dp)
+    ) {
+        Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = CardColor)) {
+            Text("← Back to Home", color = Color.White, fontSize = 16.sp)
+        }
+        Spacer(Modifier.height(20.dp))
+        Text(title, color = Accent, fontSize = 24.sp)
+        Spacer(Modifier.height(25.dp))
+        content()
+    }
+}
+
+@Composable
+fun ActionButton(title: String, onClick: () -> Unit) {
+    Button(onClick = onClick, modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+        Text(title, color = Color.Black, fontSize = 19.sp)
+    }
+}
+
+@Composable
+fun ResultCard(heading: String, explanation: String, probability: Double) {
+    Spacer(Modifier.height(22.dp))
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CardColor)) {
+        Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(heading, color = Accent, fontSize = 22.sp)
+            Spacer(Modifier.height(15.dp))
+            Text(explanation, color = Color.White, fontSize = 19.sp)
+            Spacer(Modifier.height(18.dp))
+            Text("AI estimate: ${String.format(Locale.US, "%.1f", probability * 100)}%",
+                color = Color.LightGray, fontSize = 17.sp)
+            Spacer(Modifier.height(12.dp))
+            Text("This is an AI estimate, not a safety guarantee.", color = Color.Yellow, fontSize = 14.sp)
+        }
+    }
+}
+
+@Composable
+fun fieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+    cursorColor = Accent, focusedBorderColor = Accent, unfocusedBorderColor = Color.LightGray
+)
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,13 @@
+              precision    recall  f1-score   support
+
+      benign       0.98      1.00      0.99      4000
+    phishing       1.00      0.98      0.99      4000
+
+    accuracy                           0.99      8000
+   macro avg       0.99      0.99      0.99      8000
+weighted avg       0.99      0.99      0.99      8000
+
+
+Confusion matrix:
+[[3995    5]
+ [  79 3921]]
